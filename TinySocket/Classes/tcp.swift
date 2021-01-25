@@ -17,11 +17,16 @@ public class TcpClient{
     public var state:TcpClientState{
         return self.tcpState
     }
+    public var connectTimeoutSeconds:Int = 20{
+        didSet{
+            tiny_connect_timeout(tcp: self.socket, seconds: connectTimeoutSeconds)
+        }
+    }
     private var tcpState:TcpClientState = .setup
     private var queue = DispatchQueue(label: "tcp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
     public init(domain:SocketDomain) {
         self.domain = domain
-        
+        self.connectTimeoutSeconds = 20
         switch domain {
         case .SocketIpv4:
             self.socketDomain = AF_INET
@@ -32,11 +37,13 @@ public class TcpClient{
             self.socket = tiny_tcp(domain: Int(AF_INET6))
             break
         }
+        
     }
     public func connect(ip:String,port:UInt16,callback:@escaping handleData){
         self.queue.async {
             let r = tiny_tcp_connect(tcp: self.socket, domain: Int(self.socketDomain), ip: ip, port: port)
             if r != 0{
+                self.close()
                 if let e = strerror(errno){
                     callback(nil,SocketError(code: 2, msg: String(cString: e)))
                 }else{

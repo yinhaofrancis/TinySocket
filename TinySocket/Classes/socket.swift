@@ -77,6 +77,17 @@ public func tiny_addr_ip(addr:UnsafePointer<UInt8>,size:Int)->UnsafePointer<UInt
 @_silgen_name("tiny_addr_create")
 public func tiny_addr_create(domain:Int ,addr:UnsafePointer<UInt8>,port:ushort)->UnsafePointer<UInt8>
 
+
+@_silgen_name("tiny_send_timeout")
+public func tiny_send_timeout(tcp:Int,seconds:Int)
+
+@_silgen_name("tiny_connect_timeout")
+public func tiny_connect_timeout(tcp:Int,seconds:Int)
+
+@_silgen_name("tiny_recv_timeout")
+public func tiny_recv_timeout(tcp:Int,seconds:Int)
+
+
 public enum SocketDomain{
     case SocketIpv4
     case SocketIpv6

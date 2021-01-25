@@ -23,7 +23,8 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <ifaddrs.h>
-
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 #define MAXBUFF 4 * 1024
 
 int tiny_tcp(int domain){
@@ -43,6 +44,15 @@ int tiny_host_net_family(int family){
         }
     }
     return 0;
+}
+void tiny_send_timeout(int tcp,int seconds){
+    setsockopt(tcp,SOL_SOCKET, SO_SNDTIMEO, &seconds, sizeof(int));
+}
+void tiny_connect_timeout(int tcp,int seconds){
+    setsockopt(tcp,SOL_SOCKET, TCP_CONNECTIONTIMEOUT, &seconds, sizeof(int));
+}
+void tiny_recv_timeout(int tcp,int seconds){
+    setsockopt(tcp,SOL_SOCKET, SO_RCVTIMEO, &seconds, sizeof(int));
 }
 int tiny_tcp_connect(int tcp,int domain,const char *ip,unsigned short port) {
     
