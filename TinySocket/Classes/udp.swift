@@ -7,13 +7,23 @@
 
 import Foundation
 import Darwin
-
+public enum UdpState{
+    case setup
+    case prepare
+    case recieve
+    case close
+}
 public class UdpClient{
     public var udp:Int
     public let bufferSize = 64 * 1024
     public typealias handleData = (Data?,SocketAddress?,SocketError?)->Void
     private var socketdomain:Int
     private var queue = DispatchQueue(label: "tcp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
+
+    public var state:UdpState{
+        return udpState
+    }
+    private var udpState:UdpState = .setup
     public init(domain:SocketDomain) {
         switch domain {
         case .SocketIpv4:
@@ -32,6 +42,7 @@ public class UdpClient{
         }
     }
     public func close(){
+        self.udpState = .close
         _ = tiny_close(socket: self.udp)
     }
     public func listen(port:UInt16,callback:@escaping handleData) {
@@ -44,8 +55,9 @@ public class UdpClient{
                 let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: self.bufferSize)
                 var ipbuffer:UnsafeMutablePointer<UInt8>?
                 var len = 28
+                self.udpState = .prepare
                 let flag = tiny_recv_from(socket: self.udp, data: buffer, size: self.bufferSize, client: &ipbuffer, len: &len)
-                
+                self.udpState = .recieve
                 guard flag > 0 else{
                     buffer.deallocate()
                     return
