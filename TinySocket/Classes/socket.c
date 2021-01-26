@@ -211,5 +211,5 @@ const void *tiny_addr_create(int domain,const char* addr,ushort port){
         ip->sin_family = AF_INET;
         return ip;
     }
-    
 }
+

@@ -97,6 +97,14 @@ public struct SocketError:Error{
     public var code:Int
     public var msg:String
 }
+public struct SocketHost{
+    public var name:String
+    public var aliases:[String]
+    public var length:Int
+    public var addrType:SocketDomain
+    public var ipStrAddr:[String]
+    public var ipAddr:[Data]
+}
 
 public struct SocketAddress{
     public var origin:Data
@@ -149,5 +157,94 @@ public struct SocketAddress{
             p.deallocate()
             break
         }
+    }
+}
+
+public func tiny_host(name:String)->SocketHost?{
+    guard let end = gethostbyname(name) else { return nil }
+    var ptr = end.pointee.h_aliases
+    var alias:[String] = []
+    while ptr?.pointee != nil {
+        alias.append(String(cString: ptr!.pointee!))
+        ptr = ptr?.advanced(by: 1)
+    }
+    
+    
+    ptr = end.pointee.h_addr_list
+    var address:[String] = []
+    var addrData:[Data] = []
+    let p = UnsafeMutablePointer<Int8>.allocate(capacity: 32)
+    while ptr?.pointee != nil {
+        inet_ntop(end.pointee.h_addrtype, ptr!.pointee!, p, 32)
+        address.append(String(cString: p))
+        let data = Data(bytes: ptr!.pointee!, count: Int(end.pointee.h_length))
+        addrData.append(data)
+        ptr = ptr?.advanced(by: 1)
+        bzero(p, 32)
+    }
+    freehostent(end)
+    p.deallocate()
+    return SocketHost(name: String(cString: end.pointee.h_name), aliases: alias, length: Int(end.pointee.h_length), addrType: end.pointee.h_addrtype == AF_INET6 ? .SocketIpv6 : .SocketIpv4, ipStrAddr: address, ipAddr: addrData)
+}
+public func tiny_host()->SocketHost?{
+    guard let end = gethostent() else { return nil }
+    var ptr = end.pointee.h_aliases
+    var alias:[String] = []
+    while ptr?.pointee != nil {
+        alias.append(String(cString: ptr!.pointee!))
+        ptr = ptr?.advanced(by: 1)
+    }
+    
+    
+    ptr = end.pointee.h_addr_list
+    var address:[String] = []
+    var addrData:[Data] = []
+    let p = UnsafeMutablePointer<Int8>.allocate(capacity: 32)
+    while ptr?.pointee != nil {
+        inet_ntop(end.pointee.h_addrtype, ptr!.pointee!, p, 32)
+        address.append(String(cString: p))
+        let data = Data(bytes: ptr!.pointee!, count: Int(end.pointee.h_length))
+        addrData.append(data)
+        ptr = ptr?.advanced(by: 1)
+        bzero(p, 32)
+    }
+    freehostent(end)
+    p.deallocate()
+    return SocketHost(name: String(cString: end.pointee.h_name), aliases: alias, length: Int(end.pointee.h_length), addrType: end.pointee.h_addrtype == AF_INET6 ? .SocketIpv6 : .SocketIpv4, ipStrAddr: address, ipAddr: addrData)
+}
+
+public func tiny_pton(ip:String,socket:SocketDomain)->Data {
+    switch socket {
+    case .SocketIpv4:
+        let p = UnsafeMutablePointer<UInt8>.allocate(capacity: MemoryLayout<in_addr>.size)
+        inet_pton(AF_INET , ip, p)
+        let data = Data(bytes: p, count: MemoryLayout<in_addr>.size)
+        p.deallocate()
+        return data
+    case .SocketIpv6:
+        let p = UnsafeMutablePointer<UInt8>.allocate(capacity: MemoryLayout<in6_addr>.size)
+        inet_pton(AF_INET6 , ip, p)
+        let data = Data(bytes: p, count: MemoryLayout<in6_addr>.size)
+        p.deallocate()
+        return data
+    }
+}
+public func tiny_ntop(data:Data,socket:SocketDomain)->String {
+    let p = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
+    data.copyBytes(to: p, count: data.count)
+    let r = UnsafeMutablePointer<Int8>.allocate(capacity: 32)
+    switch socket {
+    case .SocketIpv4:
+        inet_ntop(AF_INET, p, r, 32)
+        let str = String(cString: r)
+        p.deallocate()
+        r.deallocate()
+        return str
+    case .SocketIpv6:
+        inet_ntop(AF_INET, p, r, 32)
+        let str = String(cString: r)
+        p.deallocate()
+        r.deallocate()
+        return str
     }
 }

@@ -18,7 +18,7 @@ public class UdpClient{
     public let bufferSize = 64 * 1024
     public typealias handleData = (Data?,SocketAddress?,SocketError?)->Void
     private var socketdomain:Int
-    private var queue = DispatchQueue(label: "tcp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
+    private var queue = DispatchQueue(label: "udp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
 
     public var state:UdpState{
         return udpState
