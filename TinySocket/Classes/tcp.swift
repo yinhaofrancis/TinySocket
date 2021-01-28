@@ -22,11 +22,17 @@ public class TcpClient{
             tiny_connect_timeout(tcp: self.socket, seconds: connectTimeoutSeconds)
         }
     }
+    public var sendTimeoutSeconds:Int = 20{
+        didSet{
+            tiny_send_timeout(tcp: self.socket, seconds: self.sendTimeoutSeconds)
+        }
+    }
     private var tcpState:TcpClientState = .setup
     private var queue = DispatchQueue(label: "tcp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
     public init(domain:SocketDomain) {
         self.domain = domain
         self.connectTimeoutSeconds = 20
+        self.sendTimeoutSeconds = 60
         switch domain {
         case .SocketIpv4:
             self.socketDomain = AF_INET

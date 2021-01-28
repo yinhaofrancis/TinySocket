@@ -212,4 +212,3 @@ const void *tiny_addr_create(int domain,const char* addr,ushort port){
         return ip;
     }
 }
-

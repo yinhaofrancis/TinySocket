@@ -47,10 +47,16 @@ public class UdpClient{
     }
     public func listen(port:UInt16,callback:@escaping handleData) {
         self.queue.async {
-            let r = tiny_tcp_bind(tcp: self.udp, domain: self.socketdomain, port: port)
+            var a:UInt32 = 1;
+            var r = setsockopt(Int32(self.udp), SOL_SOCKET, SO_REUSEADDR, &a, 4)
             if(r != 0){
                 callback(nil,nil,SocketError(code: 6, msg: String(cString: strerror(errno))))
             }
+            r = Int32(tiny_tcp_bind(tcp: self.udp, domain: self.socketdomain, port: port))
+            if(r != 0){
+                callback(nil,nil,SocketError(code: 6, msg: String(cString: strerror(errno))))
+            }
+            
             while(true){
                 let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: self.bufferSize)
                 var ipbuffer:UnsafeMutablePointer<UInt8>?

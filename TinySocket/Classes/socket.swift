@@ -96,6 +96,10 @@ public enum SocketDomain{
 public struct SocketError:Error{
     public var code:Int
     public var msg:String
+    public init(code:Int,msg:String){
+        self.code = code
+        self.msg = msg
+    }
 }
 public struct SocketHost{
     public var name:String
@@ -246,5 +250,19 @@ public func tiny_ntop(data:Data,socket:SocketDomain)->String {
         p.deallocate()
         r.deallocate()
         return str
+    }
+}
+public func tiny_create_addr(domain:SocketDomain,addr:String,port:UInt16)->Data{
+    switch domain {
+    case .SocketIpv4:
+        let addr = tiny_addr_create(domain: Int(AF_INET), addr: addr, port: port)
+        let data = Data(bytes: addr, count: MemoryLayout<sockaddr_in>.size)
+        addr.deallocate()
+        return data
+    case .SocketIpv6:
+        let addr = tiny_addr_create(domain: Int(AF_INET6), addr: addr, port: port)
+        let data = Data(bytes: addr, count: MemoryLayout<sockaddr_in6>.size)
+        addr.deallocate()
+        return data
     }
 }
