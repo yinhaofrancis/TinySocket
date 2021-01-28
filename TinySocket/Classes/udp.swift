@@ -17,9 +17,11 @@ public class UdpClient{
     public var udp:Int
     public let bufferSize = 64 * 1024
     public typealias handleData = (Data?,SocketAddress?,SocketError?)->Void
+    public typealias handleServerData = (Data?,SocketError?)->Void
     private var socketdomain:Int
     private var queue = DispatchQueue(label: "udp_client", qos: .default, attributes: .concurrent, autoreleaseFrequency: .inherit, target: nil)
 
+    private var source:DispatchSourceRead?
     public var state:UdpState{
         return udpState
     }
@@ -44,6 +46,19 @@ public class UdpClient{
     public func close(){
         self.udpState = .close
         _ = tiny_close(socket: self.udp)
+    }
+    public func listenServer(callback:@escaping handleServerData){
+        self.source = DispatchSource.makeReadSource(fileDescriptor: Int32(self.udp), queue: self.queue)
+        self.source?.setEventHandler(handler: {
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: self.bufferSize)
+            let c = read(Int32(self.udp), buffer, self.bufferSize)
+            if c > 0{
+                callback(Data(bytes: buffer, count: c), nil)
+            }else{
+                callback(nil,SocketError(code: 0, msg: String(cString: strerror(errno))))
+            }
+        })
+        self.source?.activate()
     }
     public func listen(port:UInt16,callback:@escaping handleData) {
         self.queue.async {
@@ -77,8 +92,13 @@ public class UdpClient{
                 let data = Data(bytes: buffer, count: flag)
                 callback(data,addr,nil)
             }
-            
         }
     }
-    
+    deinit {
+        if let so = self.source{
+            if so.isCancelled == false{
+                so.cancel()
+            }
+        }
+    }
 }

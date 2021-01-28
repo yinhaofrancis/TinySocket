@@ -84,10 +84,15 @@ public class TcpClient{
             self.close()
         }
     }
-    public func send(data:Data){
+    public func send(data:Data,callback:SocketSendCallBack? = nil){
         let p = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
         data.copyBytes(to: p, count: data.count)
-        _ = tiny_send(socket: self.socket, data: p, size: data.count)
+        let i = tiny_send(socket: self.socket, data: p, size: data.count)
+        if (0 == i){
+            callback?(SocketError(code: i, msg: String(cString: strerror(errno))))
+        }else{
+            callback?(nil)
+        }
     }
     public func close() {
         _ = tiny_close(socket: self.socket)
@@ -104,6 +109,24 @@ public class TcpServer {
             self.socket = socket
             self.address = address
             self.state = state
+            self.sendTimeoutSeconds = 20
+        }
+        public func send(data:Data,callback:SocketSendCallBack? = nil){
+            DispatchQueue.global().async {
+                let p = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
+                data.copyBytes(to: p, count: data.count)
+                let i = tiny_send(socket: self.socket, data: p, size: data.count)
+                if (0 == i){
+                    callback?(SocketError(code: i, msg: String(cString: strerror(errno))))
+                }else{
+                    callback?(nil)
+                }
+            }
+        }
+        public var sendTimeoutSeconds:Int = 20{
+            didSet{
+                tiny_send_timeout(tcp: self.socket, seconds: self.sendTimeoutSeconds)
+            }
         }
     }
     public enum TcpServerState{
@@ -171,8 +194,8 @@ public class TcpServer {
                     let lc = LinkClient(socket: socket,
                                         address: SocketAddress(origin: Data(bytes: pointer!, count: Int(len))), state: .setup)
                     pointer?.deallocate()
-                    self.revc(socket: lc, callback: callback)
                     self.links.append(lc)
+                    self.revc(socket: lc, callback: callback)
                 }else{
                     if let e = strerror(errno){
                         callback(nil,nil,SocketError(code: 3, msg: String(cString: e)))
@@ -215,6 +238,7 @@ public class TcpServer {
                             self.links.remove(at: i)
                         }
                     }
+                    _ = tiny_close(socket: socket.socket)
                 }
             }
             p.deallocate()

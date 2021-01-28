@@ -266,3 +266,5 @@ public func tiny_create_addr(domain:SocketDomain,addr:String,port:UInt16)->Data{
         return data
     }
 }
+
+public typealias SocketSendCallBack = (SocketError?)->Void
