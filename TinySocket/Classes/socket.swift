@@ -35,7 +35,7 @@ public func tiny_send_to(socket:Int,
                         ip:UnsafePointer<UInt8>,
                         port:UInt16,
                         data:UnsafePointer<UInt8>,
-                        size:Int)
+                        size:Int)->Int
 
 @_silgen_name("tiny_recv")
 public func tiny_recv(socket:Int,data:UnsafePointer<UInt8>,size:Int)->Int

@@ -39,7 +39,10 @@ public class UdpClient{
         self.queue.async {
             let p = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
             data.copyBytes(to: p, count: data.count)
-            tiny_send_to(socket: self.udp, domain: self.socketdomain, ip: ip, port: port, data: p, size: data.count)
+            let a = tiny_send_to(socket: self.udp, domain: self.socketdomain, ip: ip, port: port, data: p, size: data.count)
+            if(a <= 0){
+                print(String(cString:strerror(errno)))
+            }
             p.deallocate()
         }
     }
