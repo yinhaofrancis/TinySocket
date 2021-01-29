@@ -105,7 +105,11 @@ public class CocoaUdpSocket {
             buffer.deallocate()
             self.delegate?.CocoaSocket(socket: self, recieveData: result)
         }
-        source.activate()
+        if #available(iOS 10.0, *) {
+            source.activate()
+        } else {
+            source.resume()
+        }
     }
     
     public func sendTo(data:Data,ip:String,port:UInt16){

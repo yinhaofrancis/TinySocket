@@ -26,6 +26,7 @@ public class CocoaTcpClient{
     public var state:TcpClientState{
         return innerState
     }
+    private var domain:SocketDomain = .SocketIpv4
     private var innerState:TcpClientState = .setup
     private var context:Context
     private var readSource:DispatchSourceRead?
@@ -57,6 +58,7 @@ public class CocoaTcpClient{
         #endif
         context.socket = self
         var net = PF_INET
+        self.domain = domain
         switch domain {
             
         case .SocketIpv4:
@@ -120,11 +122,15 @@ public class CocoaTcpClient{
             buffer.deallocate()
             self.delegate?.CocoaSocket(socket: self, recieveData: result)
         }
-        source.activate()
+        if #available(iOS 10.0, *) {
+            source.activate()
+        } else {
+            source.resume()
+        }
     }
-    public func sendData(data:Data) throws{
-        if let tar = self.target{
-            let r = CFSocketSendData(self.socket, tar, data as CFData, -1)
+    public func sendData(data:Data,ip:String? = nil,port:UInt16 = 0) throws{
+        if let ipa = ip{
+            let r = CFSocketSendData(self.socket, tiny_create_addr(domain:self.domain , addr: ipa, port: port) as CFData, data as CFData, -1)
             switch r {
             case .success:
                 return
@@ -136,7 +142,21 @@ public class CocoaTcpClient{
                 throw SocketError(code: 0, msg: "unknowed")
             }
         }else{
-            throw SocketError(code: 0, msg: "no server info")
+            if let tar = self.target{
+                let r = CFSocketSendData(self.socket, tar, data as CFData, -1)
+                switch r {
+                case .success:
+                    return
+                case .error:
+                    throw SocketError(code: 0, msg: "error")
+                case .timeout:
+                    throw SocketError(code: 0, msg: "time out")
+                @unknown default:
+                    throw SocketError(code: 0, msg: "unknowed")
+                }
+            }else{
+                throw SocketError(code: 0, msg: "no server info")
+            }
         }
     }
 }
