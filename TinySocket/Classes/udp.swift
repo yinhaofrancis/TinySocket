@@ -58,7 +58,11 @@ public class UdpClient{
                 callback(nil,SocketError(code: 0, msg: String(cString: strerror(errno))))
             }
         })
-        self.source?.activate()
+        if #available(iOS 10.0, *) {
+            self.source?.activate()
+        } else {
+            self.source?.resume()
+        }
     }
     public func listen(port:UInt16,callback:@escaping handleData) {
         self.queue.async {
