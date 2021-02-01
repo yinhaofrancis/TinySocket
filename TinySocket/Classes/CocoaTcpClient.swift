@@ -7,7 +7,6 @@
 
 import Foundation
 import CFNetwork
-import TinySocket
 
 
 public protocol CocoaTcpClientDelegate:class{

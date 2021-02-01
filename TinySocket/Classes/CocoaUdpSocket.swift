@@ -7,7 +7,6 @@
 
 import Foundation
 import CFNetwork
-import TinySocket
 
 public protocol CocoaUdpDelegate:class{
     func CocoaSocket(socket:CocoaUdpSocket,error:SocketError)
