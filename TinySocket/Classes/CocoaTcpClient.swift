@@ -42,20 +42,7 @@ public class CocoaTcpClient{
     }
     private var innerDelegate:debugDelegate = debugDelegate()
     #endif
-    public init(domain:SocketDomain,server:String,port:UInt16,delegate:CocoaTcpClientDelegate? = nil) throws{
-        let context = CocoaTcpClient.Context()
-        self.context = context
-
-        #if DEBUG
-        if(delegate == nil){
-            self.delegate = self.innerDelegate
-        }else{
-            self.delegate = delegate
-        }
-        #else
-        self.delegate = delegate
-        #endif
-        context.socket = self
+    public init(domain:SocketDomain,host:Data,delegate:CocoaTcpClientDelegate? = nil) throws{
         var net = PF_INET
         self.domain = domain
         switch domain {
@@ -65,6 +52,18 @@ public class CocoaTcpClient{
         case .SocketIpv6:
             net = PF_INET6
         }
+        let context = CocoaTcpClient.Context()
+        #if DEBUG
+        if(delegate == nil){
+            self.delegate = self.innerDelegate
+        }else{
+            self.delegate = delegate
+        }
+        #else
+        self.delegate = delegate
+        #endif
+       
+        self.context = context
         self.socket = CFSocketCreate(kCFAllocatorDefault, net, SOCK_STREAM, IPPROTO_TCP, CFSocketCallBackType.connectCallBack.rawValue, { (socket, t, address, data, info) in
             
             guard let wself = info?.assumingMemoryBound(to: Context.self).pointee.socket else{
@@ -78,10 +77,9 @@ public class CocoaTcpClient{
         }, &self.socketContext)
         
         guard let so = self.socket else { return  }
-        
-        let data = tiny_create_addr(domain: domain, addr: server, port: port) as CFData
-        self.target = data
-        let erro = CFSocketConnectToAddress(so,data,-1)
+        self.target = host as CFData
+        let erro = CFSocketConnectToAddress(so,host as CFData,-1)
+        context.socket = self
         switch erro{
         case .success:
             self .createRunLoop(info: &self.context)
@@ -94,7 +92,13 @@ public class CocoaTcpClient{
         @unknown default:
             throw SocketError(code: 0, msg: "unknowed")
         }
+        
     }
+    public  convenience init(domain:SocketDomain,server:String,port:UInt16,delegate:CocoaTcpClientDelegate? = nil) throws{
+        let data = tiny_create_addr(domain: domain, addr: server, port: port)
+        try self.init(domain: domain, host: data, delegate: delegate)
+    }
+    
     deinit {
         CFSocketInvalidate(self.socket)
     }
@@ -127,9 +131,9 @@ public class CocoaTcpClient{
             source.resume()
         }
     }
-    public func sendData(data:Data,ip:String? = nil,port:UInt16 = 0) throws{
-        if let ipa = ip{
-            let r = CFSocketSendData(self.socket, tiny_create_addr(domain:self.domain , addr: ipa, port: port) as CFData, data as CFData, -1)
+    public func sendData(data:Data) throws{
+        if let tar = self.target{
+            let r = CFSocketSendData(self.socket, tar, data as CFData, -1)
             switch r {
             case .success:
                 return
@@ -141,21 +145,7 @@ public class CocoaTcpClient{
                 throw SocketError(code: 0, msg: "unknowed")
             }
         }else{
-            if let tar = self.target{
-                let r = CFSocketSendData(self.socket, tar, data as CFData, -1)
-                switch r {
-                case .success:
-                    return
-                case .error:
-                    throw SocketError(code: 0, msg: "error")
-                case .timeout:
-                    throw SocketError(code: 0, msg: "time out")
-                @unknown default:
-                    throw SocketError(code: 0, msg: "unknowed")
-                }
-            }else{
-                throw SocketError(code: 0, msg: "no server info")
-            }
+            throw SocketError(code: 0, msg: "no server info")
         }
     }
 }
