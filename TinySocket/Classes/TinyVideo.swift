@@ -84,8 +84,8 @@ public class ChromeFilter:TinyFilter{
     public init(screen:CGRect? = nil){
         self.cicontext = CIContext()
         self.screenRect = screen
-        self.filter = CIFilter(name: "CIGaussianBlur", parameters: ["inputRadius":6])!
-        self.exposure = CIFilter(name: "CIExposureAdjust", parameters: ["inputEV":-3])!
+        self.filter = CIFilter(name: "CIGaussianBlur", parameters: ["inputRadius":20])!
+        self.exposure = CIFilter(name: "CIExposureAdjust", parameters: ["inputEV":-5])!
     }
     public func backProcess(img:CIImage)->CGImage?{
         self.filter.setValue(img, forKey: "inputImage")
@@ -396,8 +396,6 @@ public class TinyAssetVideoProcessOut:TinyVideoProcessOutput{
         self.session?.group.enter()
         self.videoTracks?.requestMediaDataWhenReady(on: self.session!.videoQueue, using: {
             while (!videoEnd && self.videoTracks!.isReadyForMoreMediaData){
-                
-          
                 guard let buffer = self.videoOut?(0) else { videoEnd = true ; break }
                 if let cm = buffer.0{
                     self.videoTracks!.append(cm)
