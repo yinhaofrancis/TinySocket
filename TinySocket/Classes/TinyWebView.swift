@@ -46,19 +46,29 @@ public class TinyFunction:NSObject,WKScriptMessageHandler,WKScriptMessageHandler
 
 public class TinyWebView:UIView{
     public var wkWebView:WKWebView
+    public var maskV:UIView = {
+        let v = UIView()
+        v.isUserInteractionEnabled = false
+        v.alpha = 0;
+        return v
+    }()
+    public var blur:UIVisualEffectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    public var indicate:UIActivityIndicatorView = UIActivityIndicatorView(style: .whiteLarge)
     public var functions:[String:TinyFunction] = [:]
+    
     public init(configuration: WKWebViewConfiguration) {
         self.wkWebView = WKWebView(frame: UIScreen.main.bounds, configuration: configuration)
         super.init(frame: UIScreen.main.bounds)
         self.addSubview(self.wkWebView)
-        let a = [
-            self.wkWebView.leadingAnchor.constraint(equalTo: self.leadingAnchor),
-            self.wkWebView.trailingAnchor.constraint(equalTo: self.trailingAnchor),
-            self.wkWebView.topAnchor.constraint(equalTo: self.topAnchor),
-            self.wkWebView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-        ]
-        self.wkWebView.translatesAutoresizingMaskIntoConstraints = false;
-        self.addConstraints(a)
+        self.coverView(view: self.wkWebView)
+        
+        self.blur.contentView.addSubview(self.indicate)
+        self.centerView(view: self.indicate,container: self.blur.contentView)
+        self.addSubview(maskV)
+        self.blur.frame = self.bounds
+        self.blur.autoresizingMask = [.flexibleHeight,.flexibleHeight]
+        self.addSubview(self.blur)
+        self.loadingAction()
         
     }
     
@@ -66,14 +76,15 @@ public class TinyWebView:UIView{
         self.wkWebView = WKWebView(frame: UIScreen.main.bounds, configuration: WKWebViewConfiguration())
         super.init(coder: coder)
         self.addSubview(self.wkWebView)
-        let a = [
-            self.wkWebView.leadingAnchor.constraint(equalTo: self.leadingAnchor),
-            self.wkWebView.trailingAnchor.constraint(equalTo: self.trailingAnchor),
-            self.wkWebView.topAnchor.constraint(equalTo: self.topAnchor),
-            self.wkWebView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-        ]
-        self.wkWebView.translatesAutoresizingMaskIntoConstraints = false;
-        self.addConstraints(a)
+        self.coverView(view: self.wkWebView)
+        
+        self.blur.contentView.addSubview(self.indicate)
+        self.centerView(view: self.indicate,container: self.blur.contentView)
+        self.addSubview(maskV)
+        self.blur.frame = self.bounds
+        self.blur.autoresizingMask = [.flexibleHeight,.flexibleHeight]
+        self.addSubview(self.blur)
+        self.loadingAction()
     }
     public func addMessageFunction(function:TinyFunction){
         if let fs = self.functions[function.name] {
@@ -96,6 +107,74 @@ public class TinyWebView:UIView{
             self.wkWebView.configuration.userContentController.addUserScript(WKUserScript(source: code, injectionTime: injectTime, forMainFrameOnly: forMainFrameOnly, in: .defaultClient))
         } else {
             self.wkWebView.configuration.userContentController.addUserScript(WKUserScript(source: code, injectionTime: injectTime, forMainFrameOnly: forMainFrameOnly))
+        }
+    }
+    func loadingAction(){
+        self.addMessageFunction(function: TinyFunction(name: "loadingStart", call: { (cc, sm) in
+            self.blur.frame = self.bounds
+            self.blur.isHidden = false
+            self.indicate.startAnimating()
+            UIView .transition(from: self.maskV, to: self.blur, duration: 0.3, options: [.curveEaseInOut,.transitionCrossDissolve]) { (_) in
+            }
+            
+        }))
+        
+        self.addMessageFunction(function: TinyFunction(name: "loadingEnd", call: { (cc, sm) in
+            self.blur.frame = self.bounds
+            self.blur.isHidden = true
+            self.indicate.stopAnimating()
+            UIView .transition(from: self.blur, to: self.maskV, duration: 0.5, options: [.curveEaseInOut,.transitionCrossDissolve]) { (_) in
+            }
+        }))
+        self.addScript(code: "window.webkit.messageHandlers.loadingStart.postMessage(null);", injectTime: .atDocumentStart, forMainFrameOnly: true)
+        self.addScript(code: "window.webkit.messageHandlers.loadingEnd.postMessage(null);", injectTime: .atDocumentEnd, forMainFrameOnly: true)
+    }
+    func coverView(view:UIView){
+        
+        let a = [
+            view.leadingAnchor.constraint(equalTo: self.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: self.trailingAnchor),
+            view.topAnchor.constraint(equalTo: self.topAnchor),
+            view.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+        ]
+        view.translatesAutoresizingMaskIntoConstraints = false;
+        self.addConstraints(a)
+    }
+    func centerView(view:UIView,container:UIView){
+        let a = [
+            view.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            view.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ]
+        view.translatesAutoresizingMaskIntoConstraints = false;
+        container.addConstraints(a)
+    }
+}
+
+public class TinyWebViewController:UIViewController {
+    public var webView:TinyWebView
+    @IBInspectable public var url:String?
+    public required init?(coder: NSCoder) {
+        self.webView = TinyWebView(configuration: WKWebViewConfiguration())
+        super.init(coder: coder)
+    }
+    public override func loadView() {
+        self.view = webView
+    }
+    public init(configuration:WKWebViewConfiguration){
+        self.webView = TinyWebView(configuration: configuration)
+        super.init(nibName: nil, bundle: nil)
+    }
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+        if let u = self.url{
+            self.loadUrl(url: u)
+        }
+        
+    }
+    public func loadUrl(url:String){
+        self.url = url
+        if let u = URL(string: url){
+            self.webView.wkWebView.load(URLRequest(url: u))
         }
     }
 }
