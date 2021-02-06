@@ -12,7 +12,7 @@ public protocol TinyVideoProcessOutput:class {
     func outputVideo(callback:@escaping (Int) -> (CMSampleBuffer?,CVPixelBuffer?,CMTime?)?)
     func outputAudio(callback:@escaping (Int)->CMSampleBuffer?)
     var session:TinyVideoSession? { get set}
-    func start(videoInputCount:Int,audioCount:Int,handleEnd:@escaping ()->Void)
+    func start(videoInputCount:Int,audioCount:Int,handleEnd:@escaping (AVAssetWriter.Status)->Void)
     func setSourceSize(size:CGSize)
     func end()
 }
@@ -22,7 +22,7 @@ public protocol TinyVideoProcessInput {
     var session:TinyVideoSession? { get set}
     func start()
     func end()
-    
+    var status:AVAssetReader.Status { get }
 }
 
 public protocol TinyVideoProcess{
@@ -46,6 +46,7 @@ extension TinyVideoProcess {
 public protocol TinyFilter{
     func filter(image:CIImage)->CGImage?
     var cicontext:CIContext { get }
+    var screenSize:CGSize? {get set}
 }
 extension TinyFilter{
     public func imageTransform(img:CIImage,gravity:CALayerContentsGravity,originRect:CGRect,target:CGSize)->CIImage{
@@ -69,56 +70,59 @@ extension TinyFilter{
 }
 
 public class ChromeFilter:TinyFilter{
+    public var screenSize: CGSize?
+    
     public var cicontext: CIContext
-    public var saveCache:Bool = true
+    public var saveCache:Bool = false
     public var cacheImage:CGImage?
     var filter:CIFilter
     let exposure:CIFilter
-    public var screenRect:CGRect?
     
     lazy var cgctx:TinyDrawContext? = {
-        guard let rect = self.screenRect else { return nil }
+        guard let rect = self.screenSize else { return nil }
         let context = TinyDrawContext(width: Int(rect.width), height: Int(rect.height), bytesPerRow: Int(rect.width * 4), buffer: nil)
         return context
     }()
-    public init(screen:CGRect? = nil){
+    public init(){
         self.cicontext = CIContext()
-        self.screenRect = screen
-        self.filter = CIFilter(name: "CIGaussianBlur", parameters: ["inputRadius":20])!
+        self.filter = CIFilter(name: "CIGaussianBlur", parameters: ["inputRadius":8])!
         self.exposure = CIFilter(name: "CIExposureAdjust", parameters: ["inputEV":-5])!
     }
     public func backProcess(img:CIImage)->CGImage?{
         self.filter.setValue(img, forKey: "inputImage")
         self.exposure.setValue(self.filter.outputImage, forKey: "inputImage")
         if let out = self.exposure.outputImage{
+            
             return self.cicontext.createCGImage(out, from:img.extent)
         }
         return nil
     }
     public func filter(image: CIImage) -> CGImage? {
-        guard let ciimg = self.cicontext.createCGImage(image, from: image.extent) else { return nil }
-        
-        if let ctx = self.cgctx {
-            if let ci = self.cacheImage{
-                ctx.draw(image: ci, mode: .resizeFill)
-            }else{
-                if let bac = self.backProcess(img:image){
-                    ctx.draw(image: bac, mode: .resizeFill)
-                    if self.saveCache {
-                        self.cacheImage = bac
+        return autoreleasepool { () -> CGImage? in
+            if let ctx = self.cgctx {
+                if let ci = self.cacheImage{
+                    ctx.draw(image: ci, mode: .resizeFill)
+                }else{
+                    if let bac = self.backProcess(img:image){
+                        ctx.draw(image: bac, mode: .resizeFill)
+                        if self.saveCache {
+                            self.cacheImage = bac
+                        }
                     }
                 }
-            }
-            ctx.draw(image: ciimg, mode: .resizeFit)
-            if #available(iOS 10.0, *) {
-                self.cicontext.clearCaches()
-            } else {
+                guard let ciimg = self.cicontext.createCGImage(image, from: image.extent) else { return nil }
+                ctx.draw(image: ciimg, mode: .resizeFit)
+                if #available(iOS 10.0, *) {
+                    self.cicontext.clearCaches()
+                } else {
 
+                }
+                return self.cgctx?.render()
+            }else{
+                return self.cicontext.createCGImage(image, from: image.extent)
             }
-            return self.cgctx?.render()
-        }else{
-            return ciimg
         }
+        
     }
     
 }
@@ -258,7 +262,7 @@ public class TinyVideoSession{
         self.input.session = self
         self.outout.session = self
     }
-    public func run(complete:@escaping()->Void){
+    public func run(complete:@escaping(Error?)->Void){
         self.input.start()
         let size = self.input.videoTracks.first?.track.naturalSize ?? .zero
         self.outout.setSourceSize(size: size)
@@ -267,7 +271,6 @@ public class TinyVideoSession{
             if let ws = self,let origin = ws.input.videoTracks[i].copyNextSampleBuffer(){
                 guard let buffer = ws.process.run(buffer: origin) else { return (origin,nil,nil) }
                 return (nil,buffer.0,buffer.1)
-                
             }
             return nil
         }
@@ -277,15 +280,23 @@ public class TinyVideoSession{
             }
             return nil
         }
-        self.outout.start(videoInputCount: self.input.videoTracks.count, audioCount: self.input.audioTracks.count){
-            self.input.end()
-            self.outout.end()
-            complete()
+        self.outout.start(videoInputCount: self.input.videoTracks.count, audioCount: self.input.audioTracks.count){ i in
+            if i == .completed{
+                complete(nil)
+            }else{
+                self.input.end()
+                self.outout.end()
+                complete(NSError(domain: "异常结束", code: 0, userInfo: nil))
+            }
         }
     }
 }
 
 public class TinyAssetVideoProcessInput:TinyVideoProcessInput{
+    public var status: AVAssetReader.Status {
+        return self.reader.status
+    }
+    
     public var session: TinyVideoSession?
     
     public var videoTracks: [AVAssetReaderTrackOutput] = []
@@ -354,7 +365,7 @@ public class TinyAssetVideoProcessOut:TinyVideoProcessOutput{
     
     
     
-    public func start(videoInputCount:Int,audioCount:Int,handleEnd:@escaping ()->Void) {
+    public func start(videoInputCount:Int,audioCount:Int,handleEnd:@escaping (AVAssetWriter.Status)->Void) {
        
         
         let compress:[String:Any] = [
@@ -426,8 +437,7 @@ public class TinyAssetVideoProcessOut:TinyVideoProcessOutput{
         });
         self.session?.group.notify(queue: DispatchQueue.global(), execute: {
             self.writer.finishWriting {
-                print(self.writer.status.rawValue)
-                handleEnd()
+                handleEnd(self.writer.status)
             }
         })
     }
